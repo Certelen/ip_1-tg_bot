@@ -7,16 +7,14 @@ load_dotenv()
 PROVIDER_TOKEN = os.getenv('PROVIDER_TOKEN', '')
 TG_TOKEN = os.getenv('TG_TOKEN', '')
 ADMIN_ID = os.getenv('ADMIN_ID', '')
-SECRET = os.getenv('SECRET', '')
 SPREAD_ID = os.getenv('SPREAD_ID', '')
 
 """Данные для БД"""
 DB_NAME = os.getenv('DB_NAME', 'postgres')
 DB_USERNAME = os.getenv('DB_USERNAME', 'postgres')
 DB_PASSWORD = os.getenv('DB_PASSWORD', 'postgres')
-DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_HOST = os.getenv('DB_HOST', 'db')
 DB_PORT = os.getenv('DB_PORT', '5432')
-HOST = os.getenv('HOST', 'http://127.0.0.1:8000/')
 
 SQLALCHEMY_DATABASE_URL = ((
     f'postgresql+asyncpg://\

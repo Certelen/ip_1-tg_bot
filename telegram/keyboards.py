@@ -3,30 +3,38 @@ from aiogram import types
 from settings import PAGINATION_ROW, PAGINATION_WORD_ROW
 
 
-def start_buttons():
+def next_page_exist(
+    obj_list: list,
+    pag_x: int = 1,
+    pag_y: int = PAGINATION_ROW,
+    next_page: bool = False
+) -> bool:
+    if len(obj_list) > pag_y*pag_x:
+        obj_list = obj_list[:pag_y*pag_x]
+        next_page = True
+    return next_page
+
+
+def start_buttons() -> types.InlineKeyboardMarkup:
     """Клавиатура после старта"""
     buttons = [[
         types.InlineKeyboardButton(
-            text='Каталог', callback_data='cat'
+            text='Каталог', callback_data='cat:none,page:0'
         ),
         types.InlineKeyboardButton(
-            text='Корзина', callback_data='cart'
+            text='Корзина', callback_data='cart:none,del:none'
         ),
         types.InlineKeyboardButton(
-            text='FAQ', callback_data='faq'
+            text='FAQ', callback_data='faq:none,page:0'
         )
     ]]
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def faq_inline(obj_list, page=0):
+def faq_inline(obj_list: list, page: int = 0) -> types.InlineKeyboardMarkup:
+    """Клавиатура популярных вопросов"""
     buttons = []
     buttons_row = []
-    next_page = False
-    max_page = PAGINATION_ROW
-    if len(obj_list) > max_page:
-        obj_list = obj_list[:max_page]
-        next_page = True
     for index_row in range(len(obj_list)):
         quituestion = obj_list[index_row]
         buttons_row.append(
@@ -37,32 +45,28 @@ def faq_inline(obj_list, page=0):
         )
     buttons.append(buttons_row)
 
-    if page == 1:
-        prew_button = types.InlineKeyboardButton(
-            text='Первая страница',
-            callback_data='none'
-        )
-    else:
-        prew_button = types.InlineKeyboardButton(
-            text='Страница ' + str(page-1),
-            callback_data=f'faq,page:{page-2}',
-        )
-    if not next_page:
-        next_button = types.InlineKeyboardButton(
-            text='Последняя страница', callback_data='none'
-        )
-    else:
-        next_button = types.InlineKeyboardButton(
-            text='Страница ' + str(page+1),
-            callback_data=f'faq,page:{page}',
-        )
+    prew_text = '---' if page == 1 else 'Предыдущая страница'
+    prew_call = 'none' if page == 1 else f'faq:none,page:{page-2}'
+    next_text = '---' if not next_page_exist(
+        obj_list
+    ) else 'Следующая страница'
+    next_call = 'none' if not next_page_exist(
+        obj_list
+    ) else f'faq:none,page:{page}'
+
     buttons.append([
-        prew_button,
         types.InlineKeyboardButton(
-            text='Текущая страница: ' + str(page),
+            text=prew_text,
+            callback_data=prew_call,
+        ),
+        types.InlineKeyboardButton(
+            text=f'<{str(page)}>',
             callback_data='none'
         ),
-        next_button
+        types.InlineKeyboardButton(
+            text=next_text,
+            callback_data=next_call,
+        )
     ])
     buttons.append([
         types.InlineKeyboardButton(
@@ -73,64 +77,62 @@ def faq_inline(obj_list, page=0):
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def categorys_inline(categorys_list, page=0):
+def categorys_inline(
+    obj_list: list, page: int = 0
+) -> types.InlineKeyboardMarkup:
+    """Клавиатура категорий"""
     buttons = []
     buttons_row = []
-    next_page = False
-    max_page = PAGINATION_ROW*PAGINATION_WORD_ROW
-    if len(categorys_list) > max_page:
-        categorys_list = categorys_list[:max_page]
-        next_page = True
-    for index_row in range(len(categorys_list)):
+    for index_row in range(len(obj_list)):
         if index_row % PAGINATION_WORD_ROW == 0:
             buttons.append(buttons_row)
             buttons_row = []
-        category = categorys_list[index_row]
+        category = obj_list[index_row]
         buttons_row.append(
             types.InlineKeyboardButton(
-                callback_data='cat:' + str(category[0]), text=category[1]
+                callback_data=f'cat:{str(category[0])},page:0',
+                text=category[1]
             )
         )
     buttons.append(buttons_row)
 
-    if page == 1:
-        prew_button = types.InlineKeyboardButton(
-            text='Первая страница',
-            callback_data='none'
-        )
-    else:
-        prew_button = types.InlineKeyboardButton(
-            text='Страница ' + str(page-1),
-            callback_data='cat_page:' + str(page-2)
-        )
-    if not next_page:
-        next_button = types.InlineKeyboardButton(
-            text='Последняя страница', callback_data='none'
-        )
-    else:
-        next_button = types.InlineKeyboardButton(
-            text='Страница ' + str(page+1),
-            callback_data='cat_page:' + str(page)
-        )
+    prew_text = '---' if page == 1 else 'Страница ' + str(page-1)
+    prew_call = 'none' if page == 1 else 'cat_page:' + str(page-2)
+    next_text = '---' if not next_page_exist(
+        obj_list, PAGINATION_WORD_ROW
+    ) else 'Страница ' + str(page+1)
+    next_call = 'none' if not next_page_exist(
+        obj_list, PAGINATION_WORD_ROW
+    ) else 'cat_page:' + str(page)
+
     buttons.append([
-        prew_button,
         types.InlineKeyboardButton(
-            text='Текущая страница: ' + str(page),
+            text=prew_text,
+            callback_data=prew_call,
+        ),
+        types.InlineKeyboardButton(
+            text=f'<{str(page)}>',
             callback_data='none'
         ),
-        next_button
+        types.InlineKeyboardButton(
+            text=next_text,
+            callback_data=next_call,
+        )
+    ])
+    buttons.append([
+        types.InlineKeyboardButton(
+            text='Вернуться на главную',
+            callback_data='menu')
     ])
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def subcategorys_inline(cat_id, obj_list, page=0):
+def subcategorys_inline(
+    cat_id: int, obj_list: list, page: int = 0
+) -> types.InlineKeyboardMarkup:
+    """Клавиатура подкатегорий"""
     buttons = []
     buttons_row = []
-    next_page = False
-    max_page = PAGINATION_ROW*PAGINATION_WORD_ROW
-    if len(obj_list) > max_page:
-        obj_list = obj_list[:max_page]
-        next_page = True
     for index_row in range(len(obj_list)):
         if index_row % PAGINATION_WORD_ROW == 0:
             buttons.append(buttons_row)
@@ -138,122 +140,154 @@ def subcategorys_inline(cat_id, obj_list, page=0):
         obj = obj_list[index_row]
         buttons_row.append(
             types.InlineKeyboardButton(
-                callback_data=f'sub:{str(obj[0])},cat:{cat_id}', text=obj[1]
+                callback_data=(
+                    f'sub:{str(obj[0])},'
+                    f'cat:{cat_id},'
+                    'prod_page:0,'
+                    'amount:1'
+                ), text=obj[1]
             )
         )
     buttons.append(buttons_row)
 
-    if page == 1:
-        prew_button = types.InlineKeyboardButton(
-            text='Первая страница',
-            callback_data='none'
-        )
-    else:
-        prew_button = types.InlineKeyboardButton(
-            text='Страница ' + str(page-1),
-            callback_data=f'cat:{cat_id},sub_page:{str(page-2)}'
-        )
-    if not next_page:
-        next_button = types.InlineKeyboardButton(
-            text='Последняя страница', callback_data='none'
-        )
-    else:
-        next_button = types.InlineKeyboardButton(
-            text='Страница ' + str(page+1),
-            callback_data=f'cat:{cat_id},sub_page:{str(page)}'
-        )
+    prew_text = '---' if page == 1 else 'Страница ' + str(page-1)
+    prew_call = 'none' if page == 1 else f'cat:{cat_id},page:{str(page-2)}'
+    next_text = '---' if not next_page_exist(
+        obj_list, PAGINATION_WORD_ROW
+    ) else 'Страница ' + str(page+1)
+    next_call = 'none' if not next_page_exist(
+        obj_list, PAGINATION_WORD_ROW
+    ) else f'cat:{cat_id},page:{str(page)}'
+
     buttons.append([
-        prew_button,
         types.InlineKeyboardButton(
-            text='Текущая страница: ' + str(page),
+            text=prew_text,
+            callback_data=prew_call,
+        ),
+        types.InlineKeyboardButton(
+            text=f'<{str(page)}>',
             callback_data='none'
         ),
-        next_button
+        types.InlineKeyboardButton(
+            text=next_text,
+            callback_data=next_call,
+        )
+    ])
+    buttons.append([
+        types.InlineKeyboardButton(
+            text='Вернуться на главную',
+            callback_data='menu')
     ])
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def products_inline(obj_list, sub_id, cat_id, page=0, amount=1):
+def products_inline(
+    obj_list: list, sub_id: int, cat_id: int, page: int = 0, amount: int = 1
+) -> types.InlineKeyboardMarkup:
+    """Клавиатура товаров"""
     buttons = []
-    max_page = 1
-    next_page = False
-    if len(obj_list) > max_page:
-        obj_list = obj_list[:max_page]
-        next_page = True
-    prod_id = obj_list[0][0]
     prod_price = obj_list[0][4]
-    if page == 1:
-        prew_button = types.InlineKeyboardButton(
-            text='---',
-            callback_data='none'
-        )
-    else:
-        prew_button = types.InlineKeyboardButton(
-            text='Предыдущий товар',
-            callback_data=f'sub:{sub_id},cat:{cat_id},prod_page:{str(page-2)}'
-        )
-    if not next_page:
-        next_button = types.InlineKeyboardButton(
-            text='---', callback_data='none'
-        )
-    else:
-        next_button = types.InlineKeyboardButton(
-            text='Следующий товар',
-            callback_data=f'sub:{sub_id},cat:{cat_id},prod_page:{str(page)}'
-        )
+    prew_text = '---' if page == 1 else 'Предыдущий товар'
+    prew_call = (
+        f'sub:{sub_id},'
+        f'cat:{cat_id},'
+        f'prod_page:{str(page-2)},'
+        'amount:1' if page == 1 else 'none')
+    next_text = '---' if not next_page_exist(
+        obj_list, PAGINATION_WORD_ROW
+    ) else 'Следующий товар'
+    next_call = (
+        f'sub:{sub_id},'
+        f'cat:{cat_id},'
+        f'prod_page:{str(page)},'
+        'amount:1' if not next_page_exist(
+            obj_list, PAGINATION_WORD_ROW
+        ) else 'none')
     buttons.append([
-        prew_button,
+        types.InlineKeyboardButton(
+            text=prew_text,
+            callback_data=prew_call,
+        ),
         types.InlineKeyboardButton(
             text=f'Цена: {prod_price}',
             callback_data='none'
         ),
-        next_button
-    ])
-    if amount > 1:
-        minus_amount = types.InlineKeyboardButton(
-            text='-1',
-            callback_data=f'sub:{sub_id},cat:{cat_id},prod_page:{str(page-1)},amount:{amount - 1}'
-        )
-    else:
-        minus_amount = types.InlineKeyboardButton(
-            text='---', callback_data='none'
-        )
-    buttons.append([
-        minus_amount,
         types.InlineKeyboardButton(
-            text=f'В корзину: {amount} шт',
-            callback_data=f'incart:{amount},sub:{sub_id},cat:{cat_id},prod_page:{str(page)}'
+            text=next_text,
+            callback_data=next_call,
+        )
+    ])
+    prew_text = '-1' if amount > 1 else '---'
+    prew_call = (
+        f'sub:{sub_id},'
+        f'cat:{cat_id},'
+        f'prod_page:{str(page-1)},'
+        f'amount:{amount - 1}' if amount > 1 else 'none')
+    buttons.append([
+        types.InlineKeyboardButton(
+            text=prew_text,
+            callback_data=prew_call
+        ),
+        types.InlineKeyboardButton(
+            text=f'Добавить:{amount} шт',
+            callback_data=(
+                f'incart:{amount},'
+                f'sub:{sub_id},'
+                f'cat:{cat_id},'
+                f'prod_page:{str(page)}')
         ),
         types.InlineKeyboardButton(
             text='+1',
-            callback_data=f'sub:{sub_id},cat:{cat_id},prod_page:{str(page-1)},amount:{amount + 1}'
+            callback_data=(
+                f'sub:{sub_id},'
+                f'cat:{cat_id},'
+                f'prod_page:{str(page-1)},'
+                f'amount:{amount + 1}')
         ),
+    ])
+    buttons.append([
+        types.InlineKeyboardButton(
+            text='Вернуться на главную',
+            callback_data='menu')
     ])
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def cart_inline(prod_id, sub_id, cat_id):
+def cart_inline(
+    prod_id: int, sub_id: int, cat_id: int
+) -> types.InlineKeyboardMarkup:
+    """Клавиатура после добавления товара в корзину"""
     buttons = []
     buttons.append([
         types.InlineKeyboardButton(
             text='Продолжить',
-            callback_data=f'sub:{sub_id},cat:{cat_id},prod_page:{str(prod_id-1)}'
+            callback_data=(
+                f'sub:{sub_id},'
+                f'cat:{cat_id},'
+                f'prod_page:{prod_id-1},'
+                'amount:1')
         ),
         types.InlineKeyboardButton(
             text='В корзину',
-            callback_data='cart'
+            callback_data='cart:none,del:none'
         )
+    ])
+    buttons.append([
+        types.InlineKeyboardButton(
+            text='Вернуться на главную',
+            callback_data='menu')
     ])
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def change_cart_inline(obj_list):
+def change_cart_inline(obj_list: list) -> types.InlineKeyboardMarkup:
+    """Клавиатура удаления товара из корзины"""
     buttons = []
     for obj in obj_list:
         buttons.append([
             types.InlineKeyboardButton(
                 text=f'Удалить {obj[1]} из корзины',
-                callback_data=f'cart,del:{obj[0]}'
+                callback_data=f'cart:none,del:{obj[0]}'
             )
         ])
     buttons.append([
@@ -262,13 +296,23 @@ def change_cart_inline(obj_list):
             callback_data='buy'
         )
     ])
+    buttons.append([
+        types.InlineKeyboardButton(
+            text='Вернуться на главную',
+            callback_data='menu')
+    ])
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def empty_cart_inline():
+def empty_cart_inline() -> types.InlineKeyboardMarkup:
+    """Клавиатура при пустой корзине"""
     return types.InlineKeyboardMarkup(
         inline_keyboard=[[types.InlineKeyboardButton(
             text='К покупкам',
-            callback_data='cat'
-        )]]
+            callback_data='cat:none,page:0'
+        )], [
+            types.InlineKeyboardButton(
+                text='Вернуться на главную',
+                callback_data='menu')
+        ]]
     )

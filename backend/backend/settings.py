@@ -13,6 +13,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -63,7 +64,7 @@ DATABASES = {
         'NAME': os.getenv('DATABASE_NAME', default='postgres'),
         'USER': os.getenv('DATABASE_USERNAME', default='postgres'),
         'PASSWORD': os.getenv('DATABASE_PASSWORD', default='postgres'),
-        'HOST': os.getenv('DATABASE_HOST', default='localhost'),
+        'HOST': os.getenv('DATABASE_HOST', default='db'),
         'PORT': os.getenv('DATABASE_PORT', default='5432'),
     }
 }
@@ -92,8 +93,9 @@ USE_TZ = True
 
 
 STATIC_URL = 'static/'
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
-MEDIA_ROOT = os.path.join(STATICFILES_DIRS[0], 'media')
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(STATIC_ROOT, 'media')
 
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

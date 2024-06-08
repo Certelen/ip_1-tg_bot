@@ -27,6 +27,7 @@ async def spreadsheets_update_value(
         order
 
 ) -> None:
+    """Добавление заказов в Гугл-таблицу"""
     async with Aiogoogle(service_account_creds=cred) as aiogoogle:
         values = []
         for product in products[0]:

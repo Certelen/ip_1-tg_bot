@@ -2,15 +2,24 @@ import asyncio
 
 from aiogram import F, Bot
 from aiogram.filters import CommandObject, CommandStart
-from aiogram.types import Message, CallbackQuery, FSInputFile, PreCheckoutQuery, LabeledPrice, InputMediaPhoto
+from aiogram.types import (Message, CallbackQuery, FSInputFile,
+                           PreCheckoutQuery, LabeledPrice, InputMediaPhoto)
 
 from config import dp, bot
 from filters import CheckSub
-from keyboards import start_buttons, categorys_inline, subcategorys_inline, products_inline, cart_inline, change_cart_inline, empty_cart_inline, faq_inline
 from settings import PAGINATION_ROW, PAGINATION_WORD_ROW, PROVIDER_TOKEN
-from database import get_categorys, get_subcategorys, get_products, exist_order
+import keyboards as kb
 import database as db
 import google_client as gclient
+
+
+async def split_callback(data: list) -> dict:
+    data = data.split(',')
+    data_dict = dict()
+    for arg in data:
+        arg = arg.split(':')
+        data_dict[arg[0]] = arg[1]
+    return data_dict
 
 
 @dp.message(CommandStart(), CheckSub())
@@ -24,15 +33,17 @@ async def start(message: Message, bot: Bot, command: CommandObject):
 )
 async def menu(message: CallbackQuery | Message, bot: Bot):
     try:
-        await message.message.answer(
-            'Я тестовый бот для заказа товаров. Выберите нужную опцию:',
-            reply_markup=start_buttons()
+        await bot.edit_message_text(
+            chat_id=message.message.chat.id,
+            message_id=message.message.message_id,
+            text='Я тестовый бот для заказа товаров. Выберите нужную опцию:',
+            reply_markup=kb.start_buttons()
         )
         await message.answer()
     except AttributeError:
         await message.answer(
             'Я тестовый бот для заказа товаров. Выберите нужную опцию:',
-            reply_markup=start_buttons()
+            reply_markup=kb.start_buttons()
         )
 
 
@@ -41,14 +52,10 @@ async def menu(message: CallbackQuery | Message, bot: Bot):
     call.data.startswith('faq')
 )
 async def faq(callback: CallbackQuery, bot: Bot):
-    page = 0
-    faq_id = None
-    data = callback.data.split(',')
-    if len(data) > 1:
-        page = int(data[1].split(':')[1])
-    if 'faq:' in callback.data:
-        faq_id = int(data[0].split(':')[1])
-    if faq_id:
+    call_data = await split_callback(callback.data)
+    faq_id = call_data['faq']
+    page = int(call_data['page'])
+    if call_data['faq'] != 'none':
         answer, question = await db.get_answer(faq_id)
         text = f'Ответ на вопрос "{question}":\n{answer}'
     else:
@@ -58,26 +65,32 @@ async def faq(callback: CallbackQuery, bot: Bot):
         chat_id=callback.message.chat.id,
         message_id=callback.message.message_id,
         text=text,
-        reply_markup=faq_inline(faq_list, page+1)
+        reply_markup=kb.faq_inline(faq_list, page+1)
     )
     await callback.answer()
 
 
 @dp.callback_query(
     lambda call:
-    call.data == 'cat' or
+    call.data.startswith('cat:none') or
     call.data.startswith("cat_page:")
 )
 async def catalog(callback: CallbackQuery, bot: Bot):
-    page = 0
-    if 'page' in callback.data:
-        page = int(callback.data.split(':')[1])
-    categorys = await get_categorys(PAGINATION_ROW, PAGINATION_WORD_ROW, page)
+    call_data = await split_callback(callback.data)
+    if 'page' in call_data:
+        page = int(call_data['page'])
+    else:
+        page = int(call_data['cat_page'])
+    categorys = await db.get_categorys(
+        PAGINATION_ROW,
+        PAGINATION_WORD_ROW,
+        page
+    )
     await bot.edit_message_text(
         chat_id=callback.message.chat.id,
         message_id=callback.message.message_id,
         text='Выберите интересующую категорию',
-        reply_markup=categorys_inline(categorys, page+1)
+        reply_markup=kb.categorys_inline(categorys, page+1)
     )
     await callback.answer()
 
@@ -87,12 +100,10 @@ async def catalog(callback: CallbackQuery, bot: Bot):
     call.data.startswith("cat:")
 )
 async def subcatalog(callback: CallbackQuery, bot: Bot):
-    page = 0
-    data = callback.data.split(',')
-    if len(data) > 2:
-        page = int(data[1].split(':')[1])
-    category = int(data[0].split(':')[1])
-    subcategorys = await get_subcategorys(
+    call_data = await split_callback(callback.data)
+    page = int(call_data['page'])
+    category = int(call_data['cat'])
+    subcategorys = await db.get_subcategorys(
         category,
         PAGINATION_ROW,
         PAGINATION_WORD_ROW,
@@ -102,7 +113,7 @@ async def subcatalog(callback: CallbackQuery, bot: Bot):
         chat_id=callback.message.chat.id,
         message_id=callback.message.message_id,
         text='Выберите интересующую категорию',
-        reply_markup=subcategorys_inline(category, subcategorys, page+1)
+        reply_markup=kb.subcategorys_inline(category, subcategorys, page+1)
     )
     await callback.answer()
 
@@ -112,43 +123,47 @@ async def subcatalog(callback: CallbackQuery, bot: Bot):
     call.data.startswith("sub:")
 )
 async def products(callback: CallbackQuery, bot: Bot):
-    page = 0
-    amount = 1
-    data = callback.data.split(',')
-    if len(data) > 2:
-        page = int(data[2].split(':')[1])
-    if len(data) > 3:
-        amount = int(data[3].split(':')[1])
-    category = int(data[1].split(':')[1])
-    subcat = int(data[0].split(':')[1])
-    products = await get_products(
+    call_data = await split_callback(callback.data)
+    category = int(call_data['cat'])
+    subcat = int(call_data['sub'])
+    page = int(call_data['prod_page'])
+    amount = int(call_data['amount'])
+    products = await db.get_products(
         subcat,
         page
     )
-    if callback.message.photo:
-        await bot.edit_message_media(
+    if not products:
+        await bot.edit_message_text(
             chat_id=callback.message.chat.id,
             message_id=callback.message.message_id,
-            media=InputMediaPhoto(media=FSInputFile(
-                f'backend/static/media/{products[0][3]}'),
-                caption='*Описание*:\n' + products[0][2],
-                parse_mode="Markdown"),
-            reply_markup=products_inline(
-                products, category, subcat, page+1, amount),
+            text='В данной подкатегории нет товаров.',
+            reply_markup=kb.empty_cart_inline()
         )
     else:
-        await bot.delete_message(
-            chat_id=callback.message.chat.id,
-            message_id=callback.message.message_id
-        )
-        await bot.send_photo(
-            chat_id=callback.message.chat.id,
-            photo=FSInputFile(f'backend/static/media/{products[0][3]}'),
-            caption='*Описание*:\n' + products[0][2],
-            reply_markup=products_inline(
-                products, category, subcat, page+1, amount),
-            parse_mode="Markdown"
-        )
+        if callback.message.photo:
+            await bot.edit_message_media(
+                chat_id=callback.message.chat.id,
+                message_id=callback.message.message_id,
+                media=InputMediaPhoto(media=FSInputFile(
+                    f'static/media/{products[0][3]}'),
+                    caption='*Описание*:\n' + products[0][2],
+                    parse_mode="Markdown"),
+                reply_markup=kb.products_inline(
+                    products, category, subcat, page+1, amount),
+            )
+        else:
+            await bot.delete_message(
+                chat_id=callback.message.chat.id,
+                message_id=callback.message.message_id
+            )
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=FSInputFile(f'static/media/{products[0][3]}'),
+                caption='*Описание*:\n' + products[0][2],
+                reply_markup=kb.products_inline(
+                    products, category, subcat, page+1, amount),
+                parse_mode="Markdown"
+            )
     await callback.answer()
 
 
@@ -157,14 +172,14 @@ async def products(callback: CallbackQuery, bot: Bot):
     call.data.startswith("incart:")
 )
 async def change_cart(callback: CallbackQuery, bot: Bot):
-    data = callback.data.split(',')
-    product = int(data[3].split(':')[1])
-    category = int(data[2].split(':')[1])
-    subcat = int(data[1].split(':')[1])
-    amount = int(data[0].split(':')[1])
+    call_data = await split_callback(callback.data)
+    category = int(call_data['cat'])
+    subcat = int(call_data['sub'])
+    amount = int(call_data['incart'])
+    product = int(call_data['prod_page'])
     username = callback.from_user.username
-    if not await exist_order(username):
-        await db.create_order(username)
+
+    await db.exist_or_create_order(username)
     await db.add_incart(username, product, amount)
     await bot.delete_message(
         chat_id=callback.message.chat.id,
@@ -173,7 +188,7 @@ async def change_cart(callback: CallbackQuery, bot: Bot):
     await bot.send_message(
         chat_id=callback.message.chat.id,
         text='Хотите продолжить покупки или перейти в корзину?',
-        reply_markup=cart_inline(product, subcat, category)
+        reply_markup=kb.cart_inline(product, subcat, category)
     )
     await callback.answer()
 
@@ -183,11 +198,13 @@ async def change_cart(callback: CallbackQuery, bot: Bot):
     call.data.startswith("cart")
 )
 async def cart(callback: CallbackQuery, bot: Bot):
+    """Корзина из главной и удаление товаров"""
     username = callback.from_user.username
-    data = callback.data.split(',')
-    if len(data) > 1:
-        del_item = int(data[1].split(':')[1])
-        await db.delete_fromcart(username, del_item)
+    call_data = await split_callback(callback.data)
+    del_item = call_data['del']
+    if del_item != 'none':
+        await db.delete_fromcart(username, int(del_item))
+    await db.exist_or_create_order(username)
     cart = await db.get_cart(username)
     if cart:
         text = 'В корзине:\n'
@@ -198,14 +215,14 @@ async def cart(callback: CallbackQuery, bot: Bot):
             chat_id=callback.message.chat.id,
             message_id=callback.message.message_id,
             text=text,
-            reply_markup=change_cart_inline(cart[0])
+            reply_markup=kb.change_cart_inline(cart[0])
         )
     else:
         await bot.edit_message_text(
             chat_id=callback.message.chat.id,
             message_id=callback.message.message_id,
             text='Корзина пуста!',
-            reply_markup=empty_cart_inline()
+            reply_markup=kb.empty_cart_inline()
         )
     await callback.answer()
 
@@ -215,6 +232,7 @@ async def cart(callback: CallbackQuery, bot: Bot):
     call.data.startswith("buy")
 )
 async def order(callback: CallbackQuery, bot: Bot):
+    """Отправка запроса на оплату"""
     username = callback.from_user.username
     order = await db.get_cart(username)
     prices = []
@@ -252,6 +270,7 @@ async def pre_checkout_query(
     pre_checkout_query: PreCheckoutQuery,
     bot: Bot
 ):
+    """После подтверждение оплаты, но перед самим фактом оплаты"""
     await bot.answer_pre_checkout_query(
         pre_checkout_query.id,
         ok=True
@@ -267,24 +286,28 @@ async def succesfull_payment(
     username = message.from_user.username
     payment_id = message.successful_payment.provider_payment_charge_id
     info = message.successful_payment.order_info
+
     products = await db.get_cart(username)
     order_info = await db.close_order(username, payment_id, info)
     await gclient.spreadsheets_update_value(products, order_info)
+
     msg = (
         'Ваш заказ общей стоимостью: '
         f'{message.successful_payment.total_amount // 100} '
         f'{message.successful_payment.currency}. успешно оплачен!'
         f'\r\nСпасибо, что выбираете нас!'
     )
+
     await bot.send_message(
         chat_id=message.chat.id,
         text=msg,
-        reply_markup=start_buttons()
+        reply_markup=kb.start_buttons()
     )
 
 
 @dp.callback_query(F.data == "none")
 async def none_func(callback: CallbackQuery):
+    """Отработка нажатия 'пустых' клавиш"""
     await callback.answer()
 
 

@@ -2,6 +2,7 @@ from sqlalchemy import ForeignKey, select
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+from aiogram import types
 
 import datetime
 
@@ -72,7 +73,8 @@ engine = create_async_engine(SQLALCHEMY_DATABASE_URL)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession)
 
 
-async def get_channels():
+async def get_channels() -> list:
+    """Получение каналов и групп"""
     async with AsyncSessionLocal() as session:
         async with session.begin():
             result = await session.execute(select(Channel))
@@ -81,7 +83,8 @@ async def get_channels():
             return result
 
 
-async def get_faq(pag_y, page=0):
+async def get_faq(pag_y: int, page: int = 0) -> list:
+    """Получение вопросов"""
     async with AsyncSessionLocal() as session:
         async with session.begin():
             q = select(FAQ).offset(
@@ -93,16 +96,18 @@ async def get_faq(pag_y, page=0):
             return result
 
 
-async def get_answer(faq_id):
+async def get_answer(faq_id: int | str) -> tuple:
+    """Получение ответов на вопросы"""
     async with AsyncSessionLocal() as session:
         async with session.begin():
-            q = select(FAQ).where(FAQ.id == faq_id)
+            q = select(FAQ).where(FAQ.id == int(faq_id))
             result = await session.execute(q)
             result = result.scalars().first()
             return result.answer, result.quituestion
 
 
-async def get_categorys(pag_y, pag_x, page=0):
+async def get_categorys(pag_y: int, pag_x: int, page: int = 0) -> list:
+    """Получение категорий"""
     obj_amount = pag_y * pag_x
     async with AsyncSessionLocal() as session:
         async with session.begin():
@@ -115,7 +120,10 @@ async def get_categorys(pag_y, pag_x, page=0):
             return result
 
 
-async def get_subcategorys(category, pag_y, pag_x, page=0):
+async def get_subcategorys(
+    category: int, pag_y: int, pag_x: int, page: int = 0
+) -> list:
+    """Получение подкатегорий"""
     obj_amount = pag_y * pag_x
     async with AsyncSessionLocal() as session:
         async with session.begin():
@@ -130,7 +138,8 @@ async def get_subcategorys(category, pag_y, pag_x, page=0):
             return result
 
 
-async def get_products(subcategory, page=0):
+async def get_products(subcategory: int, page: int = 0) -> list:
+    """Получение товаров"""
     async with AsyncSessionLocal() as session:
         async with session.begin():
             q = select(Product).where(
@@ -139,36 +148,33 @@ async def get_products(subcategory, page=0):
                 page
             ).limit(2)
             result = await session.execute(q)
-            result = [[product.id, product.name, product.description, product.image, product.price]
-                      for product in result.scalars()]
+            result = [
+                [product.id, product.name, product.description,
+                 product.image, product.price]
+                for product in result.scalars()]
             return result
 
 
-async def exist_order(user):
+async def exist_or_create_order(user: str) -> list:
+    """Если у пользователя нет корзины - создать"""
     async with AsyncSessionLocal() as session:
         async with session.begin():
             q = select(Order).where(
                 (Order.user == user) &
-                (Order.close == False)
+                (Order.close == False)  # noqa
             )
             order = await session.execute(q)
-            return order.scalars().first()
+            if not order.scalars().first():
+                session.add(Order(user=user, amount=0, close=False))
 
 
-async def create_order(user):
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            session.add_all([
-                Order(user=user, amount=0, close=False)
-            ])
-
-
-async def add_incart(user, product_id, amount):
+async def add_incart(user: str, product_id: int, amount: int) -> list:
+    """Добавление товара в корзину"""
     async with AsyncSessionLocal() as session:
         async with session.begin():
             q = select(Order).where(
                 (Order.user == user) &
-                (Order.close == False)
+                (Order.close == False)  # noqa
             )
             order = await session.execute(q)
             order = order.scalars().first()
@@ -198,12 +204,13 @@ async def add_incart(user, product_id, amount):
             await session.commit()
 
 
-async def delete_fromcart(user, product_id):
+async def delete_fromcart(user: str, product_id: str) -> list:
+    """Удаление товара из корзины"""
     async with AsyncSessionLocal() as session:
         async with session.begin():
             q = select(Order).where(
                 (Order.user == user) &
-                (Order.close == False)
+                (Order.close == False)  # noqa
             )
             order = await session.execute(q)
             order = order.scalars().first()
@@ -223,12 +230,13 @@ async def delete_fromcart(user, product_id):
             await session.commit()
 
 
-async def get_cart(user):
+async def get_cart(user: str) -> list:
+    """Получение корзины"""
     async with AsyncSessionLocal() as session:
         async with session.begin():
             q = select(Order).where(
                 (Order.user == user) &
-                (Order.close == False)
+                (Order.close == False)  # noqa
             )
             order = await session.execute(q)
             order = order.scalars().first()
@@ -246,14 +254,18 @@ async def get_cart(user):
                     product = await session.execute(q)
                     product = product.scalars().first()
                     return_list[0].append(
-                        [product.id, product.name, productorder.quantity, product.price])
+                        [product.id, product.name, productorder.quantity,
+                         product.price])
                 return_list.append(order.amount)
                 return return_list
             else:
                 return False
 
 
-async def close_order(user, pay_id, info):
+async def close_order(
+    user: str, pay_id: int, info: types.SuccessfulPayment
+) -> tuple:
+    """Закрытие заказа"""
     async with AsyncSessionLocal() as session:
         async with session.begin():
             q = select(Order).where(

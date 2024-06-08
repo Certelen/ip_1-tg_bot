@@ -9,7 +9,9 @@ from settings import ADMIN_ID
 
 
 class CheckSub(BaseFilter):
-    async def __call__(self, message: types.Message):
+    """Проверка подписок при первом /start"""
+
+    async def __call__(self, message: types.Message) -> None:
         chats = await get_channels()
         sub_buttons = list()
         for chat in chats:
