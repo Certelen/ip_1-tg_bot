@@ -19,7 +19,7 @@
 ```
 ~ git clone git@github.com:Certelen/ip_1-tg_bot.git
 ```
-По инструкции на сайте google API создать json-ключ.
+По инструкции на сайте [google API](https://developers.google.com/sheets/api/quickstart/python?hl=en) создать json-ключ.
 На боевом сервере создайте файл .env в папке telegram и backend и заполните его:
 telegram
 ```
